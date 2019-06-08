@@ -2,12 +2,15 @@ from captcha.image import ImageCaptcha
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-
+import pandas as pd
+from tqdm import tqdm
 import string
-characters = string.digits + string.ascii_uppercase
+import keras
+from keras import metrics
+characters = string.digits + string.ascii_uppercase + string.ascii_lowercase
 print(characters)
 
-width, height, n_len, n_class = 170, 80, 4, len(characters)
+width, height, n_len, n_class = 140, 80, 4, len(characters)
 
 
 from keras.utils.np_utils import to_categorical
@@ -38,12 +41,18 @@ plt.show()
 
 from keras.models import *
 from keras.layers import *
+from keras.callbacks import CSVLogger
 
 input_tensor = Input((height, width, 3))
 x = input_tensor
 for i in range(4):
-    x = Convolution2D(32*2**i, 3, 3, activation='relu')(x)
-    x = Convolution2D(32*2**i, 3, 3, activation='relu')(x)
+    x = Convolution2D(32*2**i, 3, 3, activation=None)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Convolution2D(32*2**i, 3, 3, activation=None)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+
     x = MaxPooling2D((2, 2))(x)
 
 x = Flatten()(x)
@@ -54,11 +63,65 @@ model = Model(input=input_tensor, output=x)
 model.compile(loss='categorical_crossentropy',
               optimizer='adadelta',
               metrics=['accuracy'])
+csv_logger = CSVLogger('11_log_0606_1024.csv', append=True, separator=';')
 
-model.fit_generator(gen(), samples_per_epoch=51200, nb_epoch=5,
-                    validation_data=gen(), nb_val_samples=1280)
+def evaluate(model, batch_num = 4):
+    batch_acc = 0
+    generator = gen()
+    for i in tqdm(range(batch_num)):
+        #X, y = generator.next()
+        X, y = next(generator)
+        y_pred = model.predict(X)
+        batch_acc += np.mean(list(map(np.array_equal, np.argmax(y, axis=2).T, np.argmax(y_pred, axis=2).T)))
+    print (batch_acc / batch_num)
+    return batch_acc / batch_num
+
+class LossHistory(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+        #self.val_losses = []
+        self.c1_losses = []
+        self.c2_losses = []
+        self.c3_losses = []
+        self.c4_losses = []
+        #self.val_c1_losses = []
+        #self.val_c2_losses = []
+        #self.val_c3_losses = []
+        #self.val_c4_losses = []
+        self.c1_acc = []
+        self.c2_acc = []
+        self.c3_acc = []
+        self.c4_acc = []
+        #self.val_c1_acc = []
+        #self.val_c2_acc = []
+        #self.val_c3_acc = []
+        #self.val_c4_acc = []
 
 
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))
+        #self.val_losses.append(logs.get('val_loss'))
+        self.c1_losses.append(logs.get('c1_loss'))
+        self.c2_losses.append(logs.get('c2_loss'))
+        self.c3_losses.append(logs.get('c3_loss'))
+        self.c4_losses.append(logs.get('c4_loss'))
+
+        self.c1_acc.append(logs.get('c1_acc'))
+        self.c2_acc.append(logs.get('c2_acc'))
+        self.c3_acc.append(logs.get('c3_acc'))
+        self.c4_acc.append(logs.get('c4_acc'))
 
 
+history = LossHistory()
+model.fit_generator(gen(), samples_per_epoch=10240, nb_epoch=10, callbacks=[history, csv_logger], validation_data=gen(), nb_val_samples=1280)
+
+final_accuracy = evaluate(model)
+
+data = pd.DataFrame({"loss" : history.losses, "c1_loss" : history.c1_losses, "c2_loss" : history.c2_losses, "c3_loss" : history.c3_losses, "c4_loss" : history.c4_losses, "c1_acc" : history.c1_acc, "c2_acc": history.c2_acc, "c3_acc" : history.c3_acc, "c4_acc" : history.c4_acc, "accuracy": final_accuracy})
+header = ["loss", "c1_loss", "c2_loss", "c3_loss", "c4_loss", "c1_acc", "c2_acc", "c3_acc", "c4_acc", "accuracy"]
+data.to_csv('11_20190606_loss_acc.csv', encoding = 'utf-8', columns = header)
+
+#final_accuracy = evaluate(model)
+
+model.save('11_cnn.h5')
 
