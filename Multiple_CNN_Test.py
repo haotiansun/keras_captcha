@@ -17,25 +17,70 @@ width, height, n_len, n_class = 140, 80, 4, len(characters)
 
 from keras.utils.np_utils import to_categorical
 
-def gen(batch_size=32):
+#def gen(dir, batch_size=32, file_list=[]):def gen(batch_size=32):
+def gen(batch_size=64):
     X = np.zeros((batch_size, height, width, 3), dtype=np.uint8)
     y = [np.zeros((batch_size, n_class), dtype=np.uint8) for i in range(n_len)]
     generator = ImageCaptcha(width=width, height=height)
     #files = os.listdir(dir)
+    #if len(file_list) == 10240:
+     #   file_list.clear()
     while True:
         for i in range(batch_size):
             random_str = ''.join([random.choice(characters) for j in range(4)])
             X[i] = generator.generate_image(random_str)
+            #pilImage = generator.generate_image(random_str)
+            #pilImage = cv2.cvtColor(np.asarray(pilImage), cv2.COLOR_RGB2BGR)
+            #pilImage = pilImage[:,:,None]
+            #pilImage = pilImage.astype('uint8')
+            #pilImage = cv2.cvtColor(pilImage, cv2.COLOR_BGR2GRAY)
+            #pilImage = pilImage[:,:,None]
+            #print (pilImage)
+            #X[i] = pilImage
+            #X[i] = cv2.cvtColor(pilImage, cv2.COLOR_BGR2GRAY)
             #path = random.choice(files)
             #imagePixel = cv2.imread(dir + '/' + path, 1)
             #filename = path[:4]
             #X[i] = imagePixel
+            #if filename in file_list:
+             #   i = i - 1
+              #  continue
+            #else:
+             #   file_list.append(filename)
             #print (filename)
             for j, ch in enumerate(random_str):
             #for j, ch in enumerate(filename):
                 y[j][i, :] = 0
                 y[j][i, characters.find(ch)] = 1
         yield X, y
+
+def test_gen(test_dir, batch_size=32, test_file_list=[]):
+    X = np.zeros((batch_size, height, width, 3), dtype=np.uint8)
+    y = [np.zeros((batch_size, n_class), dtype=np.uint8) for i in range(n_len)]
+    #generator = ImageCaptcha(width=width, height=height)
+    files = os.listdir(test_dir)
+    if len(test_file_list) == 1024:
+        test_file_list.clear()
+    while True:
+        for i in range(batch_size):
+            #random_str = ''.join([random.choice(characters) for j in range(4)])
+            #X[i] = generator.generate_image(random_str)
+            path = random.choice(files)
+            imagePixel = cv2.imread(test_dir + '/' + path, 1)
+            filename = path[:4]
+            X[i] = imagePixel
+            if filename in test_file_list:
+                i = i - 1
+                continue
+            else:
+                test_file_list.append(filename)
+            #print (filename)
+            #for j, ch in enumerate(random_str):
+            for j, ch in enumerate(filename):
+                y[j][i, :] = 0
+                y[j][i, characters.find(ch)] = 1
+        yield X, y
+
 
 def decode(y):
     y = np.argmax(np.array(y), axis=2)[:,0]
@@ -62,6 +107,10 @@ for i in range(4):
     x = Convolution2D(32*2**i, 3, 3, activation=None)(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
+    #if i > 1:
+    #x = Convolution2D(32*2**i, 3, 3, activation=None)(x)
+    #x = BatchNormalization()(x)
+    #x = Activation('relu')(x)
 
     x = MaxPooling2D((2, 2))(x)
 
@@ -71,11 +120,12 @@ x = [Dense(n_class, activation='softmax', name='c%d'%(i+1))(x) for i in range(4)
 model = Model(input=input_tensor, output=x)
 
 model.compile(loss='categorical_crossentropy',
-              optimizer='adadelta',
+              optimizer='adam',
               metrics=['accuracy'])
-csv_logger = CSVLogger('13_log_0606_1024.csv', append=True, separator=';')
+csv_logger = CSVLogger('19_log_0606_1024.csv', append=True, separator=';')
 dir = './images_4_digits'
-def evaluate(model, batch_num = 4):
+test_dir = './test_images_4_digits'
+def evaluate(model, batch_num = 1024):
     batch_acc = 0
     generator = gen()
     for i in tqdm(range(batch_num)):
@@ -122,16 +172,21 @@ class LossHistory(keras.callbacks.Callback):
         self.c4_acc.append(logs.get('c4_acc'))
 
 dir = './images_4_digits'
+test_dir = './test_images_4_digits'
+
 history = LossHistory()
-model.fit_generator(gen(), steps_per_epoch=320, epochs=60, callbacks=[history, csv_logger], validation_data=gen(), nb_val_samples=1280)
+
+file_list = []
+test_file_list = []
+model.fit_generator(gen(), steps_per_epoch=320, epochs=60, callbacks=[history, csv_logger], validation_data=gen(), nb_val_samples=1024)
 
 final_accuracy = evaluate(model)
 
 data = pd.DataFrame({"loss" : history.losses, "c1_loss" : history.c1_losses, "c2_loss" : history.c2_losses, "c3_loss" : history.c3_losses, "c4_loss" : history.c4_losses, "c1_acc" : history.c1_acc, "c2_acc": history.c2_acc, "c3_acc" : history.c3_acc, "c4_acc" : history.c4_acc, "accuracy": final_accuracy})
 header = ["loss", "c1_loss", "c2_loss", "c3_loss", "c4_loss", "c1_acc", "c2_acc", "c3_acc", "c4_acc", "accuracy"]
-data.to_csv('13_20190606_loss_acc.csv', encoding = 'utf-8', columns = header)
+data.to_csv('19_20190606_loss_acc.csv', encoding = 'utf-8', columns = header)
 
 #final_accuracy = evaluate(model)
 
-model.save('13_cnn.h5')
+model.save('19_cnn.h5')
 

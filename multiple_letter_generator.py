@@ -33,7 +33,7 @@ createFolder('./test_images_4_digits/')
 
 # character
 letters_total = string.ascii_letters[:]
-
+#letters_total = []
 num_list = []
 
 for x in range(0,10):
@@ -47,7 +47,6 @@ for letter in letters_total:
 all_char_list = num_list + letter_list
 
 length_all_char_list = len(all_char_list)
-
 
 count = 1
 save_count = []
