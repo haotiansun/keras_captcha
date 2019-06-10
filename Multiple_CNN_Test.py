@@ -9,6 +9,9 @@ import keras
 from keras import metrics
 import cv2
 import os
+from keras.models import *
+from keras.layers import *
+from keras.callbacks import CSVLogger
 characters = string.digits + string.ascii_uppercase + string.ascii_lowercase
 print(characters)
 
@@ -17,8 +20,7 @@ width, height, n_len, n_class = 140, 80, 4, len(characters)
 
 from keras.utils.np_utils import to_categorical
 
-#def gen(dir, batch_size=32, file_list=[]):def gen(batch_size=32):
-def gen(batch_size=64):
+def gen(batch_size=32):
     X = np.zeros((batch_size, height, width, 3), dtype=np.uint8)
     y = [np.zeros((batch_size, n_class), dtype=np.uint8) for i in range(n_len)]
     generator = ImageCaptcha(width=width, height=height)
@@ -86,18 +88,8 @@ def decode(y):
     y = np.argmax(np.array(y), axis=2)[:,0]
     return ''.join([characters[x] for x in y])
 
- 
-#X, y = next(gen(1))
-#plt.imshow(X[0])
-#plt.title(decode(y))
 
-#plt.show()
-
-
-from keras.models import *
-from keras.layers import *
-from keras.callbacks import CSVLogger
-
+# bulid our revised vgg-16 here
 input_tensor = Input((height, width, 3))
 x = input_tensor
 for i in range(4):
